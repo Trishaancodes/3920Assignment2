@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authenticated</title>
+    <link rel="stylesheet" href="/css/authenticated.css"> <!-- Link to authenticated.css -->
+</head>
+<body>
+    <div class="authenticated-box">
+        <h2>Welcome, <span id="user-name">Guest</span>!</h2>
+
+        <p>You are successfully signed in.</p>
+        <div class="button-container">
+            <button class="members-button" onclick="goToMembers()">Go to Members Only</button>
+            <button class="logout-button" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <script src = "../index.js"></script>
+    <script src = "/scripts/authenticated.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0; /* Adjust to match your index.html background color */
+}
+
+.signin-box {
+    background-color: #ffffff; /* Adjust to match your index.html box color */
+    padding: 25px; /* Same padding as signup.css */
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 319px; /* Same width as signup.css */
+    text-align: center;
+}
+
+.signin-box h2 {
+    margin-bottom: 20px;
+    color: #333; /* Adjust to match your index.html text color */
+}
+
+.signin-box input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.signin-box button {
+    width: 100%;
+    padding: 10px;
+    background-color: #007BFF; /* Adjust to match your index.html button color */
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.signin-box button:hover {
+    background-color: #0056b3; /* Adjust to match your index.html button hover color */
+}
