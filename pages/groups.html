@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Groups</title>
+  <link rel="stylesheet" href="/css/groups.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>Chats</h2>
+    <p id="username">Loading...</p>
+
+    <button onclick="goToCreateGroup()">+ New Group</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <h1>Your Groups</h1>
+    <p id="totalGroups"></p>
+
+    <div id="groupsContainer"></div>
+  </div>
+
+</div>
+
+<script src="/scripts/groups.js"></script>
+</body>
+</html>

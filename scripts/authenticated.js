@@ -16,7 +16,7 @@ window.onload = async () => {
   };
   
   function goToMembers() {
-    window.location.href = "/membersOnly";
+    window.location.href = "/groupsPage";
   }
   
   function logout() {

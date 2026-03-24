@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Group</title>
+  <link rel="stylesheet" href="/css/createGroup.css" />
+</head>
+<body>
+  <div class="create-group-container">
+    <h1>Create Group</h1>
+
+    <form id="create-group-form">
+      <input
+        type="text"
+        id="groupName"
+        name="groupName"
+        placeholder="Enter group name"
+        required
+      />
+
+      <h3>Select users to add</h3>
+      <div id="users-list">Loading users...</div>
+
+      <div class="button-row">
+        <button type="submit">Create Group</button>
+        <button type="button" onclick="goBack()">Back</button>
+      </div>
+    </form>
+
+    <p id="message"></p>
+  </div>
+
+  <script src="/scripts/createGroup.js"></script>
+</body>
+</html>

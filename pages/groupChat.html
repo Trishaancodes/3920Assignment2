@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Group Chat</title>
+  <link rel="stylesheet" href="/css/groupChat.css">
+</head>
+<body>
+
+<div class="chat-layout">
+
+  <!-- Header -->
+<div class="chat-header">
+  <button onclick="goBack()">← Back</button>
+  <h2>Group Chat</h2>
+
+  <button class="add-members-btn" onclick="showAddMembers()">
+    + Add Members
+  </button>
+</div>
+<div id="add-members-panel" class="add-members-panel" style="display:none;">
+  <h3>Add Members</h3>
+  <div id="available-users-list"></div>
+  <button type="button" onclick="submitAddMembers()">Add Selected</button>
+</div>
+
+  <!-- Messages -->
+  <div id="messages" class="messages"></div>
+
+  <!-- Input -->
+  <form id="message-form" class="chat-input">
+    <input id="messageInput" type="text" placeholder="Type a message..." />
+    <button type="submit">Send</button>
+  </form>
+
+</div>
+
+<script src="/scripts/groupChat.js"></script>
+</body>
+</html>
