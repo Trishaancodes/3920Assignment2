@@ -7,8 +7,6 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const MongoStore = require('connect-mongo').default;
 const { connection: sqlConnection, initializeDatabase } = require("./scripts/databaseSQL.js");
-console.log("sqlConnection is:", sqlConnection);
-console.log("typeof sqlConnection.query:", typeof sqlConnection.query);
 const Joi = require('joi');
 
 initializeDatabase();
@@ -30,20 +28,18 @@ function logUsersTable(context) {
   );
 }
 
-
 const signupSchema = Joi.object({
-    firstName: Joi.string().min(1).required(),
-    email: Joi.string().email().required(),
-    password: Joi.string().min(10).required()
+  firstName: Joi.string().min(1).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(10).required()
 });
-
 
 app.use('/static', express.static(path.join(ROOT, 'pages')));
 app.use('/public', express.static(path.join(ROOT, 'public')));
 app.use('/css', express.static(path.join(ROOT, 'css')));
 app.use('/scripts', express.static(path.join(ROOT, 'scripts')));
-app.use(express.urlencoded({ extended: true }));
 
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use(session({
@@ -51,24 +47,115 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI, // <-- simplest & cleanest
-    dbName: "users",                // your mongo DB name for sessions
+    mongoUrl: process.env.MONGODB_URI,
+    dbName: "users",
     collectionName: "sessions",
-    ttl: 60 * 60,                   // seconds (1 hour)
+    ttl: 60 * 60,
   }),
   cookie: {
-    maxAge: 60 * 60 * 1000,         // ms (1 hour)
+    maxAge: 60 * 60 * 1000,
     httpOnly: true,
     sameSite: "lax",
-    secure: false,                  // true only with HTTPS
+    secure: false,
   }
 }));
 
-app.get("/user", (req, res) => {
+function requireAuthJson(req, res, next) {
   if (!req.session.user?.email) {
     return res.status(401).json({ error: "Unauthorized" });
   }
+  next();
+}
 
+function requireAuthPage(req, res, next) {
+  if (!req.session.user?.email) {
+    return res.redirect("/signIn");
+  }
+  next();
+}
+
+/* =========================
+   MOBILE/API ROUTES
+   ========================= */
+
+// Mobile/API login: returns JSON
+app.post("/api/signIn", (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+
+  sqlConnection.query(
+    "SELECT id, firstName, email, passwordHash FROM users WHERE email = ? LIMIT 1",
+    [email],
+    async (err, results) => {
+      if (err) {
+        console.error("MySQL error:", err);
+        return res.status(500).json({ message: "Server error" });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const user = results[0];
+      console.log("👤 API login attempt for:", email);
+      logUsersTable("during api login");
+
+      const match = await bcrypt.compare(password, user.passwordHash);
+      if (!match) {
+        return res.status(401).json({ message: "Incorrect password" });
+      }
+
+      req.session.user = { email: user.email };
+
+      return res.status(200).json({
+        success: true,
+        id: user.id,
+        firstName: user.firstName,
+        email: user.email
+      });
+    }
+  );
+});
+
+// Mobile/API user: fuller JSON for Flutter profile
+app.get("/api/user", requireAuthJson, (req, res) => {
+  sqlConnection.query(
+    "SELECT id, firstName, email FROM users WHERE email = ? LIMIT 1",
+    [req.session.user.email],
+    (err, results) => {
+      if (err) {
+        console.error("MySQL error:", err);
+        return res.status(500).json({ error: "Server error" });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      return res.json({
+        id: results[0].id,
+        firstName: results[0].firstName,
+        email: results[0].email
+      });
+    }
+  );
+});
+
+// Optional API logout
+app.post("/api/logout", requireAuthJson, (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).json({ message: "Error logging out" });
+    }
+    return res.json({ success: true, message: "Logged out" });
+  });
+});
+
+/* =========================
+   SHARED JSON ROUTES
+   ========================= */
+
+app.get("/user", requireAuthJson, (req, res) => {
   sqlConnection.query(
     "SELECT firstName FROM users WHERE email = ? LIMIT 1",
     [req.session.user.email],
@@ -87,11 +174,7 @@ app.get("/user", (req, res) => {
   );
 });
 
-app.get("/group/:groupId", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.redirect("/signIn");
-  }
-
+app.get("/group/:groupId", requireAuthPage, (req, res) => {
   const groupId = Number(req.params.groupId);
 
   const sql = `
@@ -117,11 +200,7 @@ app.get("/group/:groupId", (req, res) => {
   });
 });
 
-app.get("/group/:groupId/messages", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.get("/group/:groupId/messages", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
 
   if (!groupId) {
@@ -131,6 +210,7 @@ app.get("/group/:groupId/messages", (req, res) => {
   const messagesSql = `
     SELECT 
       m.id,
+      m.group_id,
       m.message_text,
       m.sent_at,
       m.sender_user_id AS sender_id,
@@ -222,11 +302,7 @@ app.get("/group/:groupId/messages", (req, res) => {
   });
 });
 
-app.get("/emojis", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.get("/emojis", requireAuthJson, (req, res) => {
   sqlConnection.query(
     "SELECT id, emoji_symbol, emoji_name FROM emojis ORDER BY id ASC",
     (err, results) => {
@@ -240,11 +316,7 @@ app.get("/emojis", (req, res) => {
   );
 });
 
-app.post("/group/:groupId/message/:messageId/reaction", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.post("/group/:groupId/message/:messageId/reaction", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
   const messageId = Number(req.params.messageId);
   const { emojiId } = req.body;
@@ -344,19 +416,11 @@ app.post("/group/:groupId/message/:messageId/reaction", (req, res) => {
   });
 });
 
-app.get("/createGroup", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.redirect("/signIn");
-  }
-
+app.get("/createGroup", requireAuthPage, (req, res) => {
   res.sendFile(path.join(ROOT, "pages/createGroup.html"));
 });
 
-app.get("/users-for-group", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.get("/users-for-group", requireAuthJson, (req, res) => {
   const sql = `
     SELECT id, firstName, email
     FROM users
@@ -374,11 +438,7 @@ app.get("/users-for-group", (req, res) => {
   });
 });
 
-app.post("/createGroup", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.post("/createGroup", requireAuthJson, (req, res) => {
   const { groupName, memberIds } = req.body;
 
   if (!groupName || !groupName.trim()) {
@@ -410,10 +470,8 @@ app.post("/createGroup", (req, res) => {
           }
 
           const groupId = groupResult.insertId;
-
           const ids = Array.isArray(memberIds) ? memberIds.map(Number).filter(Boolean) : [];
           const uniqueMemberIds = [...new Set([creatorId, ...ids])];
-
           const values = uniqueMemberIds.map((userId) => [groupId, userId]);
 
           sqlConnection.query(
@@ -437,11 +495,7 @@ app.post("/createGroup", (req, res) => {
   );
 });
 
-app.get("/group/:groupId/available-users", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.get("/group/:groupId/available-users", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
 
   if (!groupId) {
@@ -490,11 +544,7 @@ app.get("/group/:groupId/available-users", (req, res) => {
   });
 });
 
-app.post("/group/:groupId/add-members", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.post("/group/:groupId/add-members", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
   const { memberIds } = req.body;
 
@@ -553,11 +603,7 @@ app.post("/group/:groupId/add-members", (req, res) => {
   });
 });
 
-app.post("/group/:groupId/message", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.post("/group/:groupId/message", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
   const { message } = req.body;
 
@@ -610,11 +656,7 @@ app.post("/group/:groupId/message", (req, res) => {
   });
 });
 
-app.post("/group/:groupId/read", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.post("/group/:groupId/read", requireAuthJson, (req, res) => {
   const groupId = Number(req.params.groupId);
 
   if (!groupId) {
@@ -662,11 +704,7 @@ app.post("/group/:groupId/read", (req, res) => {
   });
 });
 
-app.get("/groups", (req, res) => {
-  if (!req.session.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+app.get("/groups", requireAuthJson, (req, res) => {
   const sql = `
     SELECT
       cg.id AS group_id,
@@ -709,13 +747,14 @@ app.get("/groups", (req, res) => {
   });
 });
 
-// Serve public pages
-// ✅ ONLY CHANGE: use ROOT for sendFile paths
+/* =========================
+   WEBSITE ROUTES
+   ========================= */
+
 app.get('/', (req, res) => res.sendFile(path.join(ROOT, 'pages/index.html')));
 app.get('/signIn', (req, res) => res.sendFile(path.join(ROOT, 'pages/signIn.html')));
 app.get('/signup', (req, res) => res.sendFile(path.join(ROOT, 'pages/signUp.html')));
 
-// Authenticated landing page
 app.get('/authenticated', (req, res) => {
   if (!req.session.user) return res.redirect('/signIn');
   res.sendFile(path.join(ROOT, 'pages/authenticated.html'));
@@ -728,15 +767,13 @@ app.get("/groupsPage", (req, res) => {
   res.sendFile(path.join(ROOT, "pages/groups.html"));
 });
 
-// Members-only page
 app.get('/membersOnly', (req, res) => {
   if (!req.session.user) return res.redirect('/signIn');
   res.sendFile(path.join(ROOT, 'pages/membersOnly.html'));
 });
 
-// Signup logic
+// Website signup: redirect flow
 app.post("/signup", async (req, res) => {
-  // 1) Validate body with Joi
   const { error, value } = signupSchema.validate(req.body, { abortEarly: false });
   if (error) {
     return res.send(`<p>${error.details[0].message}</p><a href="/signup">Try again</a>`);
@@ -744,7 +781,6 @@ app.post("/signup", async (req, res) => {
 
   const { firstName, email, password } = value;
 
-  // 2) Check if email already exists
   sqlConnection.query(
     "SELECT id FROM users WHERE email = ? LIMIT 1",
     [email],
@@ -759,10 +795,8 @@ app.post("/signup", async (req, res) => {
       }
 
       try {
-        // 3) Hash password
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // 4) Insert user into MySQL
         sqlConnection.query(
           "INSERT INTO users (firstName, email, passwordHash) VALUES (?, ?, ?)",
           [firstName, email, passwordHash],
@@ -772,11 +806,9 @@ app.post("/signup", async (req, res) => {
               return res.status(500).send("Server error");
             }
 
-            // 5) Create session (stored in MongoDB sessions collection)
             req.session.user = { email };
             logUsersTable("after signup");
 
-            // 6) Redirect
             return res.redirect("/authenticated");
           }
         );
@@ -788,12 +820,11 @@ app.post("/signup", async (req, res) => {
   );
 });
 
-// Login logic
+// Website login: redirect flow
 app.post("/signIn", (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
 
-  // 2) Fetch user from MySQL (need passwordHash!)
   sqlConnection.query(
     "SELECT firstName, email, passwordHash FROM users WHERE email = ? LIMIT 1",
     [email],
@@ -808,25 +839,21 @@ app.post("/signIn", (req, res) => {
       }
 
       const user = results[0];
-      console.log("👤 Login attempt for:", email);
-      logUsersTable("during login");
+      console.log("👤 Website login attempt for:", email);
+      logUsersTable("during website login");
 
-      // 3) Compare password
       const match = await bcrypt.compare(password, user.passwordHash);
       if (!match) {
         return res.send(`<p>Incorrect password</p><a href="/signIn">Try again</a>`);
       }
 
-      // 4) Save session (MongoDB)
       req.session.user = { email: user.email };
 
-      // 5) Redirect
       return res.redirect("/authenticated");
     }
   );
 });
 
-// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy(err => {
     if (err) {
